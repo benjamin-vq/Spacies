@@ -8,8 +8,9 @@ import (
 )
 
 type Game struct {
-	config Config
-	player *Player
+	config      Config
+	player      *Player
+	projectiles []*Projectile
 }
 
 func NewGame(width, height int) *Game {
@@ -22,19 +23,40 @@ func NewGame(width, height int) *Game {
 	log.Info().Msgf("Screen Height: %d", height)
 
 	return &Game{
-		config: NewConfig(width, height),
-		player: NewPlayer(startX, startY),
+		config:      NewConfig(width, height),
+		player:      NewPlayer(startX, startY),
+		projectiles: make([]*Projectile, 0, 10),
 	}
 }
 
 func (g *Game) Update() error {
-	g.player.Update(g.config.screenWidth, g.config.screenHeight)
+	projectile := g.player.Update(g.config.screenWidth, g.config.screenHeight)
+	if projectile != nil {
+		g.projectiles = append(g.projectiles, projectile)
+	}
+
+	// Clean inactive projectiles
+	activeProjectiles := g.projectiles[:0]
+	for _, proj := range g.projectiles {
+		proj.Update()
+		if proj.Active {
+			activeProjectiles = append(activeProjectiles, proj)
+		}
+	}
+	g.projectiles = activeProjectiles
+
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(color.Black)
-	vector.DrawFilledRect(screen, g.player.x, g.player.y, float32(g.player.size), float32(g.player.size), color.White, false)
+
+	opts := &ebiten.DrawImageOptions{}
+	opts.GeoM.Translate(float64(g.player.x), float64(g.player.y))
+	screen.DrawImage(g.player.image, opts)
+	for _, proj := range g.projectiles {
+		vector.DrawFilledRect(screen, proj.X, proj.Y, float32(proj.Size), float32(proj.Size), color.White, false)
+	}
 }
 
 func (g *Game) Layout(width, height int) (int, int) {
